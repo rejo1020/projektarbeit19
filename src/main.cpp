@@ -109,6 +109,7 @@ bool tryConnectWLAN() {
  * Sends the controller in Deep-Sleep-Mode. 
  * Duration can be configured via const sleepTimeInSeconds
  */ 
+//TODO: Controller shouldn't go in deep-sleep, just wait for 60sec
 void deepSleep() {
   Serial.println("Go to Sleep");
   digitalWrite(5, LOW);
@@ -123,6 +124,7 @@ void deepSleep() {
  * Writes the given JSON to the cache-Area on the chip, 
  * so it's aviavable after deepSleep-phase
  */ 
+//TODO: just write the string to the RAM, controller doesn't go to deep sleep
 void persiste(String jsonString) {
   Serial.print("Persisting:");
   Serial.println(jsonString);
@@ -138,6 +140,7 @@ void persiste(String jsonString) {
 /**
  * Overrides the timestamp
  */
+//TODO: not needed anymore?
 void persisteTimestamp(String timestamp) {
   //persistend_timestamp = timestamp;
 }
@@ -169,6 +172,7 @@ String readSensorDataToJSON(CCS811 sensor) {
  * @return true if all data has succesfully been sent 
  *   and no more data is aviavable to send
  */
+//TODO: Sending, existing code was for deep-sleep
 bool sendHistoricalData() {
   for(int i = 0; i < (sizeof(persisted_values)/sizeof(*persisted_values)); i++) {
     Serial.println((int)(sizeof(persisted_values)/sizeof(*persisted_values)));
@@ -190,6 +194,7 @@ bool sendHistoricalData() {
  *         false if the date hasn't been sent and has to be stored
  * 
  */
+//TODO: Sending
 bool sendActData(String jsonString) {
   return false;
 }
@@ -199,6 +204,8 @@ bool sendActData(String jsonString) {
  * www.iwi.hs-karlsruhe.de/Intranetaccess/timestamp
  * or a predicted stamp (last timestamp + 1min)
  */
+//TODO: using the timestamp of IWI-server for the first time, initialize the following time-lib:
+//https://www.pjrc.com/teensy/td_libs_DateTime.html and then always just return the timestamp of the lib
 String getTimestamp() {
   bool hasActualTimestamp = false;
   String timestamp = "";
