@@ -10,7 +10,7 @@ void persiste(String);
 bool sendHistoricalData();
 bool sendActData(String);
 String getTimestamp();
-void persisteTimestamp(String);
+void synchronizeTime();
 
 
 #endif

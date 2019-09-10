@@ -5,12 +5,15 @@
 #include <ArduinoJson.h>
 #include <ctime>
 #include <queue>
+#include "time.h"
+#include <string>
 
 #define CCS811_ADDR 0x5B //Default I2C Address
+#define TZ_INFO "WEST-1DWEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00" // Western European Time
 //#define CCS811_ADDR 0x5A //Alternate I2C Address
 
 const char * networkName = "test";
-const char * networkPswd = "testtest";
+const char * networkPswd = "testtesttesttestTest123!_*testtest123";
 const int sleepTimeInSeconds = 15;
 String macAdress = "";
 CCS811 mySensor(CCS811_ADDR);
@@ -18,6 +21,9 @@ int period = 60000;
 unsigned long time_now = 0;
 std::queue<String> myqueue;
 int trysForWifiConnection = 200;
+const char* ntpServer = "de.pool.ntp.org";
+const long  gmtOffset_sec = 3600;
+const int   daylightOffset_sec = 3600;
 
 void setup()
 {
@@ -28,6 +34,7 @@ void setup()
   Serial.print("Started");
   initSensor();
   tryConnectWLAN();
+  synchronizeTime();
   trysForWifiConnection = 26; //Try to connect WIFI the first time longer, later just under 30sec
 }
 
@@ -119,6 +126,7 @@ void deepSleep() {
   //esp_deep_sleep_start();
   while(millis() < time_now + period){
         //do nothing until the next 60s ran up
+        delay(100);
     }
   digitalWrite(5, HIGH);
 }
@@ -138,11 +146,14 @@ void persiste(String jsonString) {
 }
 
 /**
- * Overrides the timestamp
+ * Configures the time-lib to the western european time
  */
-//TODO: not needed anymore?
-void persisteTimestamp(String timestamp) {
-  //persistend_timestamp = timestamp;
+//TODO: Device don't get time from server and offers just the initial-time
+void synchronizeTime() {
+  tryConnectWLAN();
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  configTzTime(TZ_INFO, ntpServer); // ESP32 Systemzeit mit NTP Synchronisieren);
+  getTimestamp();
 }
 
 /**
@@ -195,54 +206,16 @@ bool sendActData(String jsonString) {
 }
 
 /**
- * Returns the actual timestamp from:
- * www.iwi.hs-karlsruhe.de/Intranetaccess/timestamp
- * or a predicted stamp (last timestamp + 1min)
+ * Returns the actual timestamp
  */
-//TODO: using the timestamp of IWI-server for the first time, initialize the following time-lib:
-//https://www.pjrc.com/teensy/td_libs_DateTime.html and then always just return the timestamp of the lib
+//TODO: formatting the timestamp like specified  yyyy-MM-dd hh:mm:ss
 String getTimestamp() {
-  bool hasActualTimestamp = false;
-  String timestamp = "";
-  if (tryConnectWLAN()) { //get act. timestamp from server
-  Serial.println("Try getting timestamp from IWI");
-    WiFiClient client;
-    client.setTimeout(10);
-    if(!client.connect("www.iwi.hs-karlsruhe.de", 80)) {
-      Serial.println("Failed to connect");
-    } else {
-      Serial.println("Connected to intranet");
-    }
-    //client.println(F("GET /Intranetaccess/timestamp"));
-    client.println(F("GET /Intranetaccess/info/bulletinboard/INFB HTTP/1.0"));
-    client.println(F("Host: www.iwi.hs-karlsruhe.de"));
-    client.println(F("Connection: close"));
-
-    if (client.println() == 0) {
-      Serial.println(F("Failed to send request"));
-    }
-    //TODO: read/receive Timestamp and set flag true
-    //hasActualTimestamp = true;
-    char status[32] = {0};
-    client.readBytesUntil('\r', status, sizeof(status));
-    Serial.println(status);
-    if (strcmp(status, "HTTP/1.1 200 OK") != 0) {
-      Serial.print(F("Unexpected response: "));
-      Serial.println(status);
-    }
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo, 15000)){
+    Serial.println("Failed to obtain time");
   }
-
-  if (!hasActualTimestamp) { //read from cache
-  Serial.println("Failed getting timestamp via IWI-Server");
-  Serial.println("Reading timestamp from cache instead");
-  //persistend_timestamp [18] += 1;
-  //Serial.println(persistend_timestamp);
-  //timestamp = persistend_timestamp;
-    //read
-    //increment predicted time
-  }
-
-  persisteTimestamp(timestamp);
-
+  String timestamp = String(timeinfo.tm_year) + "-" + String(timeinfo.tm_mon) + "-" + timeinfo.tm_mday + " " + timeinfo.tm_hour + ":" + timeinfo.tm_min + ":" + timeinfo.tm_sec;
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+  Serial.println(timestamp);
   return timestamp;
 }
