@@ -4,46 +4,43 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <ctime>
+#include <queue>
 
 #define CCS811_ADDR 0x5B //Default I2C Address
 //#define CCS811_ADDR 0x5A //Alternate I2C Address
 
-const char * networkName = "WLAN Gastzugang";
-const char * networkPswd = "12345678";
+const char * networkName = "test";
+const char * networkPswd = "testtest";
 const int sleepTimeInSeconds = 15;
 String macAdress = "";
 CCS811 mySensor(CCS811_ADDR);
-RTC_DATA_ATTR char persistend_timestamp [20] = "2019-01-01_12:00:00";
-RTC_DATA_ATTR String persisted_values [10];
+int period = 60000;
+unsigned long time_now = 0;
+std::queue<String> myqueue;
+int trysForWifiConnection = 200;
 
 void setup()
 {
   Wire.begin();
   pinMode(5, OUTPUT);
-  digitalWrite(5, HIGH);
+  digitalWrite(5, HIGH); //LED on -> active
   Serial.begin(11500);
   Serial.print("Started");
   initSensor();
   tryConnectWLAN();
-
+  trysForWifiConnection = 26; //Try to connect WIFI the first time longer, later just under 30sec
 }
 
 void loop()
 {
-
+  time_now = millis();
   mySensor.readAlgorithmResults();
   bool connected = tryConnectWLAN();
   String jsonString = readSensorDataToJSON(mySensor);
   //delay(1000);
-  if (connected) {
-    if(sendHistoricalData()) {
-      if (!sendActData(jsonString)) {
-        persiste(jsonString);
-      } //only if sending all historical Data done
+  if (!(connected && sendHistoricalData() && sendActData(jsonString))) {
+      persiste(jsonString);
     }
-  } 
-  
-
 deepSleep();
   
 }
@@ -77,9 +74,13 @@ bool tryConnectWLAN() {
 
     int trys = 0;
     WiFi.begin(networkName, networkPswd);
-    while (WiFi.status() != WL_CONNECTED && trys < 50) 
+    while (WiFi.status() != WL_CONNECTED && trys < trysForWifiConnection) 
     {
-      delay(1000);
+      digitalWrite(5, LOW); //let LED blink while try to connect
+      delay(500);
+      digitalWrite(5, HIGH);
+      delay(500);
+
       trys++;
       Serial.print("trys:");
       Serial.println(trys);
@@ -107,34 +108,33 @@ bool tryConnectWLAN() {
 
 /**
  * Sends the controller in Deep-Sleep-Mode. 
- * Duration can be configured via const sleepTimeInSeconds
+ * Duration can be configured via const period
  */ 
-//TODO: Controller shouldn't go in deep-sleep, just wait for 60sec
 void deepSleep() {
   Serial.println("Go to Sleep");
   digitalWrite(5, LOW);
   Serial.flush();
-  WiFi.getSleep();
   //ESP.deepSleep(10e6);
-  esp_sleep_enable_timer_wakeup(sleepTimeInSeconds * 1e6);
-  esp_deep_sleep_start();
+  //esp_sleep_enable_timer_wakeup(sleepTimeInSeconds * 1e6);
+  //esp_deep_sleep_start();
+  while(millis() < time_now + period){
+        //do nothing until the next 60s ran up
+    }
+  digitalWrite(5, HIGH);
 }
 
 /**
- * Writes the given JSON to the cache-Area on the chip, 
- * so it's aviavable after deepSleep-phase
+ * Saves the given entry, so it is aviavable after longer WiFi-unaviavability
+ * Just saves the last 1000 entrys, older entrys will get lost
  */ 
-//TODO: just write the string to the RAM, controller doesn't go to deep sleep
 void persiste(String jsonString) {
   Serial.print("Persisting:");
   Serial.println(jsonString);
-  int first_free_index = 0;
-  for(; first_free_index < (sizeof(persisted_values)/sizeof(*persisted_values)); first_free_index++) {
-    if (persisted_values[first_free_index] == "") {
-      break;
-    }
+  if (myqueue.size() > 1000) {
+    String s = myqueue.front(); //just save the last 1000 entrys cause of memory
+    Serial.println("Queue full, removing " + s);
   }
-  persisted_values[first_free_index] = jsonString;
+  myqueue.push(jsonString);
 }
 
 /**
@@ -172,17 +172,12 @@ String readSensorDataToJSON(CCS811 sensor) {
  * @return true if all data has succesfully been sent 
  *   and no more data is aviavable to send
  */
-//TODO: Sending, existing code was for deep-sleep
 bool sendHistoricalData() {
-  for(int i = 0; i < (sizeof(persisted_values)/sizeof(*persisted_values)); i++) {
-    Serial.println((int)(sizeof(persisted_values)/sizeof(*persisted_values)));
-    Serial.println(i);
-    if (persisted_values[i] == "") {
-      Serial.println("Leer");
-      
-    } else {
-      Serial.println("voll:");
-      Serial.println(persisted_values[i]);
+  while (!myqueue.empty()) {
+    String actToSend = myqueue.front();
+    if (!sendActData(actToSend)) { //if sending data not succesfull -> Connection-Probem, save value and continue in loop
+      myqueue.push(actToSend); //saving not sended string
+      return false;
     }
   }
   return true;
@@ -194,7 +189,7 @@ bool sendHistoricalData() {
  *         false if the date hasn't been sent and has to be stored
  * 
  */
-//TODO: Sending
+//TODO: implement Sending
 bool sendActData(String jsonString) {
   return false;
 }
@@ -240,9 +235,9 @@ String getTimestamp() {
   if (!hasActualTimestamp) { //read from cache
   Serial.println("Failed getting timestamp via IWI-Server");
   Serial.println("Reading timestamp from cache instead");
-  persistend_timestamp [18] += 1;
-  Serial.println(persistend_timestamp);
-  timestamp = persistend_timestamp;
+  //persistend_timestamp [18] += 1;
+  //Serial.println(persistend_timestamp);
+  //timestamp = persistend_timestamp;
     //read
     //increment predicted time
   }
