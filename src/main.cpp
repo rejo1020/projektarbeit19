@@ -130,8 +130,8 @@ void deepSleep() {
 void persiste(String jsonString) {
   Serial.print("Persisting:");
   Serial.println(jsonString);
-  if (myqueue.size() > 1000) {
-    String s = myqueue.front(); //just save the last 1000 entrys cause of memory
+  if (myqueue.size() > 750) {
+    String s = myqueue.front(); //just save the last 750 entrys cause of memory
     Serial.println("Queue full, removing " + s);
   }
   myqueue.push(jsonString);
