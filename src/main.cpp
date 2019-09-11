@@ -93,16 +93,15 @@ bool tryConnectWLAN() {
     }
     Serial.println();
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("Connected!");
+      Serial.println("WiFi Connected!");
       Serial.print("IP address: ");
       Serial.println(WiFi.localIP());
     } else {
       Serial.println("timed OUT");
-      Serial.print(WiFi.status());
+      Serial.print("WiFi-Status-Code: " + WiFi.status());
       return false;
     }
   } else {
-    Serial.println(WiFi.status());
     Serial.println("WLAN already conntected");
     Serial.print("MAC:");
     macAdress = WiFi.macAddress();
@@ -128,6 +127,7 @@ void deepSleep() {
         delay(100);
     }
   digitalWrite(5, HIGH);
+  Serial.println("woke up");
 }
 
 /**
@@ -148,6 +148,7 @@ void persiste(String jsonString) {
  * Configures the time-lib to the western european time
  */
 void synchronizeTime() {
+  Serial.println("Synchronizing Time via: " + String(ntpServer));
   tryConnectWLAN();
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   //configTzTime(TZ_INFO, ntpServer); // ESP32 Systemzeit mit NTP Synchronisieren);
@@ -172,7 +173,7 @@ String readSensorDataToJSON(CCS811 sensor) {
   doc["errorstatus"] = mySensor.checkForStatusError();
   String jsonString;
   serializeJson(doc, jsonString);
-  Serial.println(jsonString);
+  Serial.println("Sensor-Results: " + jsonString);
   return jsonString;
 }
 
@@ -182,13 +183,16 @@ String readSensorDataToJSON(CCS811 sensor) {
  *   and no more data is aviavable to send
  */
 bool sendHistoricalData() {
+  Serial.println("Try sending historical Data");
   while (!myqueue.empty()) {
     String actToSend = myqueue.front();
     if (!sendActData(actToSend)) { //if sending data not succesfull -> Connection-Probem, save value and continue in loop
-      myqueue.push(actToSend); //saving not sended string
+      myqueue.push(actToSend); //saving not sent string
+      Serial.println("Not all historial Data could have been sent, there are " + String(myqueue.size()) + " values left");
       return false;
     }
   }
+  Serial.println("All historical Data has been sent");
   return true;
 }
 
@@ -200,6 +204,9 @@ bool sendHistoricalData() {
  */
 //TODO: implement Sending
 bool sendActData(String jsonString) {
+  Serial.println("Try to send: " + jsonString);
+  //TODO: send
+  Serial.println("Sending not successfull");
   return false;
 }
 
@@ -207,17 +214,16 @@ bool sendActData(String jsonString) {
  * Returns the actual local timestamp formatted like specified  yyyy-MM-dd hh:mm:ss
  */
 String getTimestamp() {
+  Serial.println("Getting actual time");
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo, 15000)){
     Serial.println("Failed to obtain time");
   }
-  String timestamp = String(timeinfo.tm_year) + "-" + String(timeinfo.tm_mon) + "-" + timeinfo.tm_mday + " " + timeinfo.tm_hour + ":" + timeinfo.tm_min + ":" + timeinfo.tm_sec;
-  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
   return formatTimestamp(timeinfo);
 }
 
 /**
- * Builds a string out of the given timeInfo (struct tm)
+ * Builds and prints a string out of the given timeInfo (struct tm)
  * The Format will be yyyy-mm-dd hh:mm:ss
  */
 String formatTimestamp(tm info) {
