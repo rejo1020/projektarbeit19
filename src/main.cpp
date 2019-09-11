@@ -9,7 +9,6 @@
 #include <string>
 
 #define CCS811_ADDR 0x5B //Default I2C Address
-#define TZ_INFO "WEST-1DWEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00" // Western European Time
 //#define CCS811_ADDR 0x5A //Alternate I2C Address
 
 const char * networkName = "test";
@@ -21,7 +20,7 @@ int period = 60000;
 unsigned long time_now = 0;
 std::queue<String> myqueue;
 int trysForWifiConnection = 200;
-const char* ntpServer = "de.pool.ntp.org";
+const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 3600;
 const int   daylightOffset_sec = 3600;
 
@@ -148,11 +147,10 @@ void persiste(String jsonString) {
 /**
  * Configures the time-lib to the western european time
  */
-//TODO: Device don't get time from server and offers just the initial-time
 void synchronizeTime() {
   tryConnectWLAN();
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  configTzTime(TZ_INFO, ntpServer); // ESP32 Systemzeit mit NTP Synchronisieren);
+  //configTzTime(TZ_INFO, ntpServer); // ESP32 Systemzeit mit NTP Synchronisieren);
   getTimestamp();
 }
 
@@ -171,7 +169,7 @@ String readSensorDataToJSON(CCS811 sensor) {
   doc["co2"] = mySensor.getCO2();
   doc["tvoc"] = mySensor.getTVOC();
   doc["altitude"] = mySensor.getBaseline();
-  doc["errorstatus"] = mySensor.begin();
+  doc["errorstatus"] = mySensor.checkForStatusError();
   String jsonString;
   serializeJson(doc, jsonString);
   Serial.println(jsonString);
@@ -206,9 +204,8 @@ bool sendActData(String jsonString) {
 }
 
 /**
- * Returns the actual timestamp
+ * Returns the actual local timestamp formatted like specified  yyyy-MM-dd hh:mm:ss
  */
-//TODO: formatting the timestamp like specified  yyyy-MM-dd hh:mm:ss
 String getTimestamp() {
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo, 15000)){
@@ -216,6 +213,36 @@ String getTimestamp() {
   }
   String timestamp = String(timeinfo.tm_year) + "-" + String(timeinfo.tm_mon) + "-" + timeinfo.tm_mday + " " + timeinfo.tm_hour + ":" + timeinfo.tm_min + ":" + timeinfo.tm_sec;
   Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
-  Serial.println(timestamp);
-  return timestamp;
+  return formatTimestamp(timeinfo);
+}
+
+/**
+ * Builds a string out of the given timeInfo (struct tm)
+ * The Format will be yyyy-mm-dd hh:mm:ss
+ */
+String formatTimestamp(tm info) {
+  String stamp = "";
+  stamp += String(info.tm_year + 1900) + "-";
+  stamp = addZeroIfNeeded(stamp, info.tm_mon + 1, 10);
+  stamp += String(info.tm_mon + 1) + "-";
+  stamp = addZeroIfNeeded(stamp, info.tm_mday, 10);
+  stamp += String(info.tm_mday) + " ";
+  stamp = addZeroIfNeeded(stamp, info.tm_hour, 10);
+  stamp += String(info.tm_hour) + ":";
+  stamp = addZeroIfNeeded(stamp, info.tm_min, 10);
+  stamp += String(info.tm_min) + ":";
+  stamp = addZeroIfNeeded(stamp, info.tm_sec, 10);
+  stamp += String(info.tm_sec);
+  Serial.println(stamp);
+  return stamp;
+}
+
+/**
+ * Compares if the actualDateValue is under the threashold (toCompareTo) and adds an 0 to the string, if dateValue is smaller
+ */
+String addZeroIfNeeded(String stamp, int dateValue, int toCompareTo) {
+  if (dateValue < toCompareTo) {
+    stamp += "0";
+  }
+  return stamp;
 }

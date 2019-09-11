@@ -11,6 +11,8 @@ bool sendHistoricalData();
 bool sendActData(String);
 String getTimestamp();
 void synchronizeTime();
+String formatTimestamp(tm);
+String addZeroIfNeeded(String, int, int);
 
 
 #endif
